@@ -77,7 +77,7 @@ func TestResourcePost(t *testing.T) {
 	deployName := fmt.Sprintf("nginx-%s", rand.String(5))
 	res := h.NewAPIResource(consumer.Name, deployName, 1)
 	h.StartControllerManager(ctx)
-	h.StartWorkAgent(ctx, consumer.Name, false)
+	h.StartWorkAgent(ctx, consumer.Name)
 	clientHolder := h.WorkAgentHolder
 	agentWorkClient := clientHolder.ManifestWorks(consumer.Name)
 
@@ -187,7 +187,7 @@ func TestResourcePost(t *testing.T) {
 		labels := []*prommodel.LabelPair{
 			{Name: strPtr("source"), Value: strPtr("maestro")},
 			{Name: strPtr("cluster"), Value: strPtr(clusterName)},
-			{Name: strPtr("type"), Value: strPtr("io.open-cluster-management.works.v1alpha1.manifests")},
+			{Name: strPtr("type"), Value: strPtr("io.open-cluster-management.works.v1alpha1.manifestbundles")},
 		}
 		checkServerCounterMetric(t, families, "cloudevents_sent_total", labels, 2.0)
 		checkServerCounterMetric(t, families, "cloudevents_received_total", labels, 2.0)
@@ -276,7 +276,7 @@ func TestResourcePatch(t *testing.T) {
 	consumer := h.CreateConsumer("")
 
 	h.StartControllerManager(ctx)
-	h.StartWorkAgent(ctx, consumer.ID, false)
+	h.StartWorkAgent(ctx, consumer.ID)
 	clientHolder := h.WorkAgentHolder
 	agentWorkClient := clientHolder.ManifestWorks(consumer.ID)
 
@@ -595,14 +595,14 @@ func TestResourceFromGRPC(t *testing.T) {
 	res.ID = uuid.NewString()
 
 	h.StartControllerManager(ctx)
-	h.StartWorkAgent(ctx, consumer.Name, false)
+	h.StartWorkAgent(ctx, consumer.Name)
 	clientHolder := h.WorkAgentHolder
 	agentWorkClient := clientHolder.ManifestWorks(consumer.Name)
 
 	// use grpc client to create resource
 	h.StartGRPCResourceSourceClient()
 	err := h.GRPCSourceClient.Publish(ctx, types.CloudEventsType{
-		CloudEventsDataType: payload.ManifestEventDataType,
+		CloudEventsDataType: payload.ManifestBundleEventDataType,
 		SubResource:         types.SubResourceSpec,
 		Action:              common.CreateRequestAction,
 	}, res)
@@ -611,17 +611,17 @@ func TestResourceFromGRPC(t *testing.T) {
 	// for real case, the controller should have a mapping between resource (replicated) in maestro and resource (root) in kubernetes
 	// so call subscribe method can return the resource
 	// for testing, just list the resource via restful api.
-	resources, _, err := client.DefaultApi.ApiMaestroV1ResourcesGet(ctx).Execute()
+	resourceBundles, _, err := client.DefaultApi.ApiMaestroV1ResourceBundlesGet(ctx).Execute()
 	Expect(err).NotTo(HaveOccurred(), "Error getting object:  %v", err)
-	Expect(resources.Items).NotTo(BeEmpty(), "Expected returned resource list is not empty")
+	Expect(resourceBundles.Items).NotTo(BeEmpty(), "Expected returned resource list is not empty")
 
-	resource, resp, err := client.DefaultApi.ApiMaestroV1ResourcesIdGet(ctx, *resources.Items[0].Id).Execute()
+	resourceBundle, resp, err := client.DefaultApi.ApiMaestroV1ResourceBundlesIdGet(ctx, *resourceBundles.Items[0].Id).Execute()
 	Expect(err).NotTo(HaveOccurred(), "Error getting object:  %v", err)
 	Expect(resp.StatusCode).To(Equal(http.StatusOK))
-	Expect(*resource.Id).To(Equal(res.ID))
-	Expect(*resource.Kind).To(Equal("Resource"))
-	Expect(*resource.Href).To(Equal(fmt.Sprintf("/api/maestro/v1/resources/%s", *resource.Id)))
-	Expect(*resource.Version).To(Equal(int32(1)))
+	Expect(*resourceBundle.Id).To(Equal(res.ID))
+	Expect(*resourceBundle.Kind).To(Equal("ResourceBundle"))
+	Expect(*resourceBundle.Href).To(Equal(fmt.Sprintf("/api/maestro/v1/resource-bundles/%s", *resourceBundle.Id)))
+	Expect(*resourceBundle.Version).To(Equal(int32(1)))
 
 	// add the resource to the store
 	h.Store.Add(res)
@@ -703,26 +703,26 @@ func TestResourceFromGRPC(t *testing.T) {
 	}, 10*time.Second, 1*time.Second).Should(Succeed())
 
 	newRes := h.NewResource(consumer.Name, deployName, 2, 1)
-	newRes.ID = *resource.Id
-	newRes.Version = *resource.Version
+	newRes.ID = *resourceBundle.Id
+	newRes.Version = *resourceBundle.Version
 	err = h.GRPCSourceClient.Publish(ctx, types.CloudEventsType{
-		CloudEventsDataType: payload.ManifestEventDataType,
+		CloudEventsDataType: payload.ManifestBundleEventDataType,
 		SubResource:         types.SubResourceSpec,
 		Action:              common.UpdateRequestAction,
 	}, newRes)
 	Expect(err).NotTo(HaveOccurred(), "Error publishing resource with grpc source client: %v", err)
 
-	resource, resp, err = client.DefaultApi.ApiMaestroV1ResourcesIdGet(ctx, newRes.ID).Execute()
+	resourceBundle, resp, err = client.DefaultApi.ApiMaestroV1ResourceBundlesIdGet(ctx, newRes.ID).Execute()
 	Expect(err).NotTo(HaveOccurred(), "Error getting object:  %v", err)
 	Expect(resp.StatusCode).To(Equal(http.StatusOK))
-	Expect(*resource.Id).NotTo(BeEmpty(), "Expected ID assigned on creation")
-	Expect(*resource.Kind).To(Equal("Resource"))
-	Expect(*resource.Href).To(Equal(fmt.Sprintf("/api/maestro/v1/resources/%s", *resource.Id)))
-	Expect(*resource.Version).To(Equal(int32(2)))
+	Expect(*resourceBundle.Id).NotTo(BeEmpty(), "Expected ID assigned on creation")
+	Expect(*resourceBundle.Kind).To(Equal("ResourceBundle"))
+	Expect(*resourceBundle.Href).To(Equal(fmt.Sprintf("/api/maestro/v1/resource-bundles/%s", *resourceBundle.Id)))
+	Expect(*resourceBundle.Version).To(Equal(int32(2)))
 
 	Eventually(func() error {
 		// ensure the work can be get by work client
-		work, err = agentWorkClient.Get(ctx, *resource.Id, metav1.GetOptions{})
+		work, err = agentWorkClient.Get(ctx, *resourceBundle.Id, metav1.GetOptions{})
 		if err != nil {
 			return err
 		}
@@ -773,8 +773,8 @@ func TestResourceFromGRPC(t *testing.T) {
 	Expect(updateWorkStatus(ctx, agentWorkClient, work, deletingWorkStatus)).NotTo(HaveOccurred())
 
 	Eventually(func() error {
-		resource, _, err = client.DefaultApi.ApiMaestroV1ResourcesIdGet(ctx, newRes.ID).Execute()
-		if resource != nil {
+		resourceBundle, _, err = client.DefaultApi.ApiMaestroV1ResourceBundlesIdGet(ctx, newRes.ID).Execute()
+		if resourceBundle != nil {
 			return fmt.Errorf("resource %s is not deleted", newRes.ID)
 		}
 		return nil
@@ -818,8 +818,8 @@ func TestResourceFromGRPC(t *testing.T) {
 			{Name: strPtr("cluster"), Value: strPtr(clusterName)},
 			{Name: strPtr("type"), Value: strPtr("io.open-cluster-management.works.v1alpha1.manifestbundles")},
 		}
-		checkServerCounterMetric(t, families, "cloudevents_sent_total", labels, 1.0)
-		checkServerCounterMetric(t, families, "cloudevents_received_total", labels, 1.0)
+		checkServerCounterMetric(t, families, "cloudevents_sent_total", labels, 6.0)
+		checkServerCounterMetric(t, families, "cloudevents_received_total", labels, 4.0)
 	}
 }
 
@@ -838,7 +838,7 @@ func TestResourceBundleFromGRPC(t *testing.T) {
 	res.ID = uuid.NewString()
 
 	h.StartControllerManager(ctx)
-	h.StartWorkAgent(ctx, consumer.Name, true)
+	h.StartWorkAgent(ctx, consumer.Name)
 	clientHolder := h.WorkAgentHolder
 	agentWorkClient := clientHolder.ManifestWorks(consumer.Name)
 
