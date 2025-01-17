@@ -17,6 +17,13 @@
 kind_version=0.12.0
 step_version=0.26.2
 
+export namespace="maestro"
+export image_tag=${image_tag:-"latest"}
+export external_image_registry=${external_image_registry:-"image-registry.testing"}
+export internal_image_registry=${internal_image_registry:-"image-registry.testing"}
+
+export KUBECONFIG=${PWD}/test/e2e/.kubeconfig
+
 if ! command -v kind >/dev/null 2>&1; then
     echo "This script will install kind (https://kind.sigs.k8s.io/) on your machine."
     curl -Lo ./kind-amd64 "https://kind.sigs.k8s.io/dl/v${kind_version}/kind-$(uname)-amd64"
@@ -34,7 +41,7 @@ if ! command -v step >/dev/null 2>&1; then
 fi
 
 # 1. create KinD cluster
-cat << EOF | kind create cluster --name maestro --kubeconfig ./test/e2e/.kubeconfig --config=-
+cat << EOF | kind create cluster --name maestro --kubeconfig ${KUBECONFIG} --config=-
 kind: Cluster
 apiVersion: kind.x-k8s.io/v1alpha4
 nodes:
@@ -45,24 +52,21 @@ nodes:
   - containerPort: 30090
     hostPort: 30090
 EOF
-export KUBECONFIG=${PWD}/test/e2e/.kubeconfig
 
 # 2. build maestro image and load to KinD cluster
-export namespace=maestro
-export image_tag=latest
-export external_image_registry=image-registry.testing
-export internal_image_registry=image-registry.testing
-make image
-# related issue: https://github.com/kubernetes-sigs/kind/issues/2038
-if command -v docker &> /dev/null; then
-    kind load docker-image ${external_image_registry}/${namespace}/maestro:$image_tag --name maestro
-elif command -v podman &> /dev/null; then
-    podman save ${external_image_registry}/${namespace}/maestro:$image_tag -o /tmp/maestro.tar 
-    kind load image-archive /tmp/maestro.tar --name maestro
-    rm /tmp/maestro.tar
-else 
-    echo "Neither Docker nor Podman is installed, exiting"
-    exit 1
+if [ $external_image_registry == "image-registry.testing" ]; then
+  make image
+  # related issue: https://github.com/kubernetes-sigs/kind/issues/2038
+  if command -v docker &> /dev/null; then
+      kind load docker-image ${external_image_registry}/${namespace}/maestro:$image_tag --name maestro
+  elif command -v podman &> /dev/null; then
+      podman save ${external_image_registry}/${namespace}/maestro:$image_tag -o /tmp/maestro.tar 
+      kind load image-archive /tmp/maestro.tar --name maestro 
+      rm /tmp/maestro.tar
+  else 
+      echo "Neither Docker nor Podman is installed, exiting"
+      exit 1
+  fi
 fi
 
 # 3. deploy service-ca

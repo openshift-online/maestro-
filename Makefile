@@ -93,6 +93,9 @@ unit_test_json_output ?= ${PWD}/unit-test-results.json
 mqtt_integration_test_json_output ?= ${PWD}/mqtt-integration-test-results.json
 grpc_integration_test_json_output ?= ${PWD}/grpc-integration-test-results.json
 
+# E2E test label-filter
+e2e_test_label_filer ?= !(e2e-tests-spec-resync-reconnect||e2e-tests-status-resync-reconnect)
+
 # Prints a list of useful targets.
 help:
 	@echo ""
@@ -426,8 +429,8 @@ e2e-test/teardown:
 	./test/e2e/setup/e2e_teardown.sh
 .PHONY: e2e-test/teardown
 
-e2e-test: e2e-test/teardown e2e-test/setup
-	ginkgo -v --fail-fast --label-filter="!(e2e-tests-spec-resync-reconnect||e2e-tests-status-resync-reconnect)" \
+e2e-test/run:
+	ginkgo -v --fail-fast --label-filter="$(e2e_test_label_filer)" \
 	--output-dir="${PWD}/test/e2e/report" --json-report=report.json --junit-report=report.xml \
 	${PWD}/test/e2e/pkg -- \
 	-api-server=https://$(shell cat ${PWD}/test/e2e/.external_host_ip):30080 \
@@ -435,4 +438,11 @@ e2e-test: e2e-test/teardown e2e-test/setup
 	-server-kubeconfig=${PWD}/test/e2e/.kubeconfig \
 	-consumer-name=$(shell cat ${PWD}/test/e2e/.consumer_name) \
 	-agent-kubeconfig=${PWD}/test/e2e/.kubeconfig
+.PHONY: e2e-test/run
+
+e2e-test: e2e-test/teardown e2e-test/setup e2e-test/run
 .PHONY: e2e-test
+
+migration-test:
+	./test/e2e/migration/test.sh
+.PHONY: migration-test
