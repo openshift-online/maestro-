@@ -67,13 +67,13 @@ func TestStatusDispatcher(t *testing.T) {
 	labels := []*prommodel.LabelPair{
 		{Name: strPtr("source"), Value: strPtr("maestro")},
 		{Name: strPtr("cluster"), Value: strPtr(consumer1)},
-		{Name: strPtr("type"), Value: strPtr("io.open-cluster-management.works.v1alpha1.manifests")},
+		{Name: strPtr("type"), Value: strPtr("io.open-cluster-management.works.v1alpha1.manifestbundles")},
 	}
 	checkServerCounterMetric(t, families, "cloudevents_sent_total", labels, 1.0)
 	labels = []*prommodel.LabelPair{
 		{Name: strPtr("source"), Value: strPtr("maestro")},
 		{Name: strPtr("cluster"), Value: strPtr(consumer2)},
-		{Name: strPtr("type"), Value: strPtr("io.open-cluster-management.works.v1alpha1.manifests")},
+		{Name: strPtr("type"), Value: strPtr("io.open-cluster-management.works.v1alpha1.manifestbundles")},
 	}
 	checkServerCounterMetric(t, families, "cloudevents_sent_total", labels, 2.0)
 }
