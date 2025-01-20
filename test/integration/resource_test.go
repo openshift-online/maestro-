@@ -741,7 +741,7 @@ func TestResourceFromGRPC(t *testing.T) {
 	Expect(manifest["spec"].(map[string]interface{})["replicas"]).To(Equal(float64(2)))
 
 	err = h.GRPCSourceClient.Publish(ctx, types.CloudEventsType{
-		CloudEventsDataType: payload.ManifestEventDataType,
+		CloudEventsDataType: payload.ManifestBundleEventDataType,
 		SubResource:         types.SubResourceSpec,
 		Action:              common.DeleteRequestAction,
 	}, newRes)
@@ -818,7 +818,7 @@ func TestResourceFromGRPC(t *testing.T) {
 			{Name: strPtr("cluster"), Value: strPtr(clusterName)},
 			{Name: strPtr("type"), Value: strPtr("io.open-cluster-management.works.v1alpha1.manifestbundles")},
 		}
-		checkServerCounterMetric(t, families, "cloudevents_sent_total", labels, 6.0)
+		checkServerCounterMetric(t, families, "cloudevents_sent_total", labels, 7.0)
 		checkServerCounterMetric(t, families, "cloudevents_received_total", labels, 4.0)
 	}
 }
